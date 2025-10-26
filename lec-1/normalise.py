@@ -87,15 +87,24 @@ def insert_products(products_df) -> dict:
             inserted = 0
             for _, row in products_df.iterrows():
                 product_name = row['productName'].strip() if pd.notna(row['productName']) else None
-                description = row['productDescription'].strip() if pd.notna(row['productDescription']) else None
 
+                # Проверяем существование продукта
+                existing = connection.execute(
+                    text("SELECT id FROM product WHERE name = :name"),
+                    {'name': product_name}
+                ).fetchone()
+
+                if existing:
+                    products[product_name] = existing[0]
+                    continue
+
+                description = row['productDescription'].strip() if pd.notna(row['productDescription']) else None
                 grams = clean_numeric_field(row['grams'])
                 calories = clean_numeric_field(row['calories'])
                 proteins = clean_numeric_field(row['proteins'])
                 fats = clean_numeric_field(row['fats'])
                 carbs = clean_numeric_field(row['carbs'])
                 unit_price = clean_numeric_field(row['unit_price'])
-
                 ingredients = row['ingredients'].strip() if pd.notna(row['ingredients']) else None
 
                 if product_name and unit_price is not None:
@@ -216,8 +225,6 @@ CREATE TABLE product (
 );
 """
 
-products = insert_products(products_df)
-
 # 4. Заполним таблицу product_category значениями product_id из таблицы product при заполнении и соответствующим
 # category_id из словаря categories
 """
@@ -230,6 +237,10 @@ CREATE TABLE product_category (
     UNIQUE (product_id, category_id)
 );
 """
+
+products = insert_products(products_df)
+
+
 
 # 5. Заполним таблицу order из orders_df(clientName, orderDate, status, totalAmount, products) значениями client_id из
 # словаря clients. Проверка поля Status на допустимость значений (только 'Completed', 'Cancelled', 'Processing').
