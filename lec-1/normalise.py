@@ -105,6 +105,7 @@ def insert_products(products_df) -> dict:
                                                fats, carbs, ingredients, unit_price)
                             VALUES (:name, :desc, :grams, :calories, :proteins, 
                                    :fats, :carbs, :ingredients, :price)
+                            ON CONFLICT (name) DO NOTHING
                             RETURNING id
                         """),
                         {
@@ -131,7 +132,7 @@ def insert_products(products_df) -> dict:
                 products[row[1]] = row[0]
 
             transaction.commit()
-            print(f"Inserted {inserted} products (total: {len(products)})")
+            print(f"Inserted {inserted} new products (total: {len(products)})")
         except Exception as e:
             print(f"Failed to insert products: {e}")
             transaction.rollback()
