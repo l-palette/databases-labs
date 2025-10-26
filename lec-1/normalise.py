@@ -1,5 +1,6 @@
 import pandas as pd
 from sqlalchemy import create_engine, text
+import re
 
 def insert_categories(unique_categories):
     with engine.connect() as connection:
@@ -18,6 +19,125 @@ def insert_categories(unique_categories):
         except Exception as e:
             print(f"Failed to insert categories: {e}")
             transaction.rollback()
+
+
+def insert_clients(clients_df) -> dict:
+    clients = {}
+    with engine.connect() as connection:
+        transaction = connection.begin()
+        try:
+            inserted = 0
+            for _, row in clients_df.iterrows():
+                client_name = row['clientName'].strip() if pd.notna(row['clientName']) else None
+                phone_number = row['phoneNumber'].strip() if pd.notna(row['phoneNumber']) else None
+                username = row['username'].strip() if pd.notna(row['username']) else None
+                password = row['password'].strip() if pd.notna(row['password']) else None
+
+                if phone_number and username and password:
+                    result = connection.execute(
+                        text("""
+                            INSERT INTO client (name, phone_number, username, password) 
+                            VALUES (:name, :phone, :username, :password)
+                            ON CONFLICT (username) DO NOTHING
+                            RETURNING id, name
+                        """),
+                        {
+                            'name': client_name,
+                            'phone': phone_number,
+                            'username': username,
+                            'password': password
+                        }
+                    )
+                    row_result = result.fetchone()
+                    if row_result:
+                        clients[client_name] = row_result[0]
+                        inserted += 1
+
+            # Получаем всех клиентов для словаря
+            result = connection.execute(text("SELECT id, name FROM client"))
+            for row in result:
+                if row[1]:
+                    clients[row[1]] = row[0]
+
+            transaction.commit()
+            print(f"Inserted {inserted} new clients (total: {len(clients)})")
+        except Exception as e:
+            print(f"Failed to insert clients: {e}")
+            transaction.rollback()
+    print(f"{clients=}")
+    return clients
+
+
+def clean_numeric_field(value):
+    if pd.isna(value):
+        return None
+    cleaned = re.sub(r'[^\d.,]', '', str(value))
+    cleaned = cleaned.replace(',', '.')
+    try:
+        return float(cleaned) if cleaned else None
+    except:
+        return None
+
+
+def insert_products(products_df) -> dict:
+    products = {}
+    with engine.connect() as connection:
+        transaction = connection.begin()
+        try:
+            inserted = 0
+            for _, row in products_df.iterrows():
+                product_name = row['productName'].strip() if pd.notna(row['productName']) else None
+                description = row['productDescription'].strip() if pd.notna(row['productDescription']) else None
+
+                grams = clean_numeric_field(row['grams'])
+                calories = clean_numeric_field(row['calories'])
+                proteins = clean_numeric_field(row['proteins'])
+                fats = clean_numeric_field(row['fats'])
+                carbs = clean_numeric_field(row['carbs'])
+                unit_price = clean_numeric_field(row['unit_price'])
+
+                ingredients = row['ingredients'].strip() if pd.notna(row['ingredients']) else None
+
+                if product_name and unit_price is not None:
+                    result = connection.execute(
+                        text("""
+                            INSERT INTO product (name, description, grams, calories, proteins, 
+                                               fats, carbs, ingredients, unit_price)
+                            VALUES (:name, :desc, :grams, :calories, :proteins, 
+                                   :fats, :carbs, :ingredients, :price)
+                            RETURNING id
+                        """),
+                        {
+                            'name': product_name,
+                            'desc': description,
+                            'grams': grams,
+                            'calories': calories,
+                            'proteins': proteins,
+                            'fats': fats,
+                            'carbs': carbs,
+                            'ingredients': ingredients,
+                            'price': unit_price
+                        }
+                    )
+                    product_result = result.fetchone()
+                    if product_result:
+                        product_id = product_result[0]
+                        products[product_name] = product_id
+                        inserted += 1
+
+            # Получаем все продукты
+            result = connection.execute(text("SELECT id, name FROM product"))
+            for row in result:
+                products[row[1]] = row[0]
+
+            transaction.commit()
+            print(f"Inserted {inserted} products (total: {len(products)})")
+        except Exception as e:
+            print(f"Failed to insert products: {e}")
+            transaction.rollback()
+
+    print(f"{products=}")
+    return products
 
 
 DATABASE_URL = "postgresql://user:password@localhost:5435/db_shop"
@@ -60,7 +180,7 @@ with engine.connect() as connection:
     print("Categories in database:")
     result = connection.execute(text("SELECT * FROM category"))
     for row in result:
-        categories[row[0]] = row[1]
+        categories[row[1]] = row[0]
 
 print(f"{categories=}")
 
@@ -75,6 +195,7 @@ CREATE TABLE client (
     password VARCHAR(255) NOT NULL
 );
 """
+clients = insert_clients(clients_df)
 
 # 3. Заполним таблицу product из product_df (productName, productDescription, grams, calories, proteins, fats, carbs,
 # ingredients, unit_price, categoryName) всем кроме categoryName. Преобразование поля Price к числовому типу, удалив
@@ -93,6 +214,8 @@ CREATE TABLE product (
     unit_price NUMERIC(10,2) NOT NULL
 );
 """
+
+products = insert_products(products_df)
 
 # 4. Заполним таблицу product_category значениями product_id из таблицы product при заполнении и соответствующим
 # category_id из словаря categories

@@ -27,7 +27,7 @@ CREATE TABLE category (
 -- Создание таблицы товаров
 CREATE TABLE product (
     id INT PRIMARY KEY DEFAULT nextval('product_id_seq'),
-    name VARCHAR(100),
+    name VARCHAR(100) NOT NULL UNIQUE,
     description VARCHAR(255),
     grams NUMERIC(6,2),
     calories NUMERIC(6,2),
