@@ -1,6 +1,25 @@
 import pandas as pd
 from sqlalchemy import create_engine, text
 
+def insert_categories(unique_categories):
+    with engine.connect() as connection:
+        transaction = connection.begin()
+        try:
+            inserted = 0
+            for category in unique_categories:
+                result = connection.execute(
+                    text("INSERT INTO category (name) VALUES (:name) ON CONFLICT (name) DO NOTHING"),
+                    {'name': category}
+                )
+                if result.rowcount > 0:
+                    inserted += 1
+            transaction.commit()
+            print(f"Inserted {inserted} new categories (total unique: {len(unique_categories)})")
+        except Exception as e:
+            print(f"Failed to insert categories: {e}")
+            transaction.rollback()
+
+
 DATABASE_URL = "postgresql://user:password@localhost:5435/db_shop"
 CSV_DIR = "initial-data"
 engine = create_engine(DATABASE_URL)
@@ -33,30 +52,6 @@ for category in products_df['categoryName'].unique():
             unique_categories.add(one_category)
 
 print(f"Unique categories to be inserted: {unique_categories}")
-
-
-def insert_categories(unique_categories):
-    with engine.connect() as connection:
-        transaction = connection.begin()
-        try:
-            for category in unique_categories:
-                print(f"Inserting category: '{category}'")
-                try:
-                    result = connection.execute(
-                        text("INSERT INTO category (name) VALUES (:name) ON CONFLICT (name) DO NOTHING"),
-                        {'name': category}
-                    )
-                    if result.rowcount > 0:
-                        print(f"Inserted category: '{category}'")
-                    else:
-                        print(f"Category '{category}' already exists")
-                except Exception as e:
-                    print(f"Error inserting category: '{category}'. Error: {e}")
-            transaction.commit()
-        except Exception as e:
-            print(f"Transaction failed: {e}")
-            transaction.rollback()
-
 
 insert_categories(unique_categories)
 

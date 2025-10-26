@@ -1,9 +1,9 @@
 -- Создание последовательностей
 CREATE SEQUENCE IF NOT EXISTS client_id_seq START WITH 1;
-CREATE SEQUENCE IF NOT EXISTS order_id_seq START WITH 1;
+CREATE SEQUENCE IF NOT EXISTS food_order_id_seq START WITH 1;
 CREATE SEQUENCE IF NOT EXISTS category_id_seq START WITH 1;
 CREATE SEQUENCE IF NOT EXISTS product_id_seq START WITH 1;
-CREATE SEQUENCE IF NOT EXISTS order_item_id_seq START WITH 1;
+CREATE SEQUENCE IF NOT EXISTS food_order_item_id_seq START WITH 1;
 CREATE SEQUENCE IF NOT EXISTS product_category_id_seq START WITH 1;
 
 -- Создание типов
@@ -49,8 +49,8 @@ CREATE TABLE product_category (
 );
 
 -- Создание таблицы заказов
-CREATE TABLE "order" (
-    id INT PRIMARY KEY DEFAULT nextval('order_id_seq'),
+CREATE TABLE food_order (
+    id INT PRIMARY KEY DEFAULT nextval('food_order_id_seq'),
     client_id INT NOT NULL,
     date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     status ENUM_STATUS,
@@ -58,19 +58,13 @@ CREATE TABLE "order" (
 );
 
 -- Создание таблицы элементов заказа
-CREATE TABLE order_item (
-    id INT PRIMARY KEY DEFAULT nextval('order_item_id_seq'),
-    order_id INT NOT NULL,
+CREATE TABLE food_order_item (
+    id INT PRIMARY KEY DEFAULT nextval('food_order_item_id_seq'),
+    food_order_id INT NOT NULL,
     product_id INT NOT NULL,
     quantity INT NOT NULL CHECK (quantity > 0),
-    FOREIGN KEY (order_id) REFERENCES "order"(id),
+    FOREIGN KEY (food_order_id) REFERENCES food_order(id),
     FOREIGN KEY (product_id) REFERENCES product(id),
-    UNIQUE (order_id, product_id)
+    UNIQUE (food_order_id, product_id)
 );
 
--- Добавление индексов для улучшения производительности
-CREATE INDEX idx_product_category_product ON product_category(product_id);
-CREATE INDEX idx_product_category_category ON product_category(category_id);
-CREATE INDEX idx_order_item_order ON order_item(order_id);
-CREATE INDEX idx_order_item_product ON order_item(product_id);
-CREATE INDEX idx_order_client ON "order"(client_id);
