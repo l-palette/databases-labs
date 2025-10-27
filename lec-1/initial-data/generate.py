@@ -34,14 +34,14 @@ def generate_csv_files():
         for _ in range(100):
             # Случайный выбор между русским и английским именем
             if random.random() < 0.7:  # 70% русских имен
-                full_name = f"{fake.last_name_female()} {fake.first_name_female()} {fake.middle_name_female()}"
+                full_name = f"{fake.last_name_female()} {fake.first_name_female()} {fake.middle_name_female()}"[:100]
                 phone = f"+7({random.randint(900, 999)}){random.randint(100, 999)}-{random.randint(10, 99)}-{random.randint(10, 99)}"
             else:
                 full_name = fake.name()
                 phone = f"+44 {random.randint(20, 79)} {random.randint(1000, 9999)} {random.randint(1000, 9999)}"
             clients.append(full_name)
             # Создание уникального username
-            base_username = full_name.lower().replace(" ", "").replace("ё", "е")
+            base_username = full_name.lower().replace(" ", "").replace("ё", "е")[:16]
             username = base_username
             counter = 1
             while username in used_usernames:

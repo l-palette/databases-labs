@@ -319,12 +319,13 @@ CREATE TABLE category (
 
 unique_categories = set()
 for category in products_df["categoryName"].unique():
-    category = category.strip()
-    if category:
-        categories_multiple = category.split(";")
-        for one_category in categories_multiple:
-            one_category = one_category.strip()
-            unique_categories.add(one_category)
+    if pd.notna(category):
+        category = category.strip()
+        if category:
+            categories_multiple = category.split(";")
+            for one_category in categories_multiple:
+                one_category = one_category.strip()
+                unique_categories.add(one_category)
 
 print(f"Unique categories to be inserted: {unique_categories}")
 
