@@ -578,3 +578,5 @@ ORDER BY
 ![img.png](images/img_5.png)
 3) Постройте эту визуализацию (график или диаграмму) с помощью любого инструмента (Excel, Google Data Studio, Power BI,
 Python matplotlib) и сделайте краткий вывод по результатам.
+![img.png](images/img_6.png)
+![img.png](images/img_7.png)
