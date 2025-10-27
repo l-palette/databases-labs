@@ -54,7 +54,8 @@ CREATE TABLE food_order (
     client_id INT NOT NULL,
     date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     status ENUM_STATUS,
-    FOREIGN KEY (client_id) REFERENCES client(id)
+    FOREIGN KEY (client_id) REFERENCES client(id),
+    UNIQUE (client_id, date)
 );
 
 -- Создание таблицы элементов заказа

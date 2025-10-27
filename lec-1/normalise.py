@@ -1,6 +1,8 @@
 import pandas as pd
 from sqlalchemy import create_engine, text
 import re
+from datetime import datetime
+
 
 def insert_categories(unique_categories):
     with engine.connect() as connection:
@@ -173,6 +175,83 @@ def insert_products(products_df) -> dict:
     return products
 
 
+def validate_status(status):
+    valid_statuses = ['Completed', 'Cancelled', 'Processing']
+    if pd.isna(status) or status not in valid_statuses:
+        return 'Processing'
+    return status
+
+
+def insert_orders(orders_df, clients):
+    orders = {}
+    with engine.connect() as connection:
+        transaction = connection.begin()
+        try:
+            inserted = 0
+            for idx, row in orders_df.iterrows():
+                client_name = row['clientName'].strip() if pd.notna(row['clientName']) else None
+
+                if client_name in clients:
+                    client_id = clients[client_name]
+                    order_date = pd.to_datetime(row['orderDate']) if pd.notna(row['orderDate']) else datetime.now()
+                    status = validate_status(row['status'] if pd.notna(row['status']) else None)
+
+                    result = connection.execute(
+                        text("""
+                            INSERT INTO food_order (client_id, date, status)
+                            VALUES (:client_id, :date, CAST(:status AS ENUM_STATUS))
+                            ON CONFLICT (client_id, date) DO UPDATE SET status = EXCLUDED.status
+                            RETURNING id
+                        """),
+                        {
+                            'client_id': client_id,
+                            'date': order_date,
+                            'status': status
+                        }
+                    )
+                    order_result = result.fetchone()
+
+                    if order_result:
+                        order_id = order_result[0]
+                        inserted += 1
+
+
+                        products_to_insert = row['products'].split(';')
+                        for product_item in products_to_insert:
+                            product_item = product_item.split(':')
+                            product_item_name = product_item[0].strip()
+                            product_item_count = int(product_item[1].strip())
+
+                            if product_item_name in products:
+                                product_item_id = products[product_item_name]
+
+                                connection.execute(
+                                    text("""
+                                        INSERT INTO food_order_item (food_order_id, product_id, quantity)
+                                        VALUES (:order_id, :product_id, :quantity)
+                                        ON CONFLICT (food_order_id, product_id) 
+                                        DO UPDATE SET quantity = EXCLUDED.quantity
+                                    """),
+                                    {
+                                        'order_id': order_id,
+                                        'product_id': product_item_id,
+                                        'quantity': product_item_count
+                                    }
+                                )
+                                print(f"Inserted item for order_id - {order_id}, product_id - {product_item_id}, quantity - {product_item_count}")
+
+            transaction.commit()
+            print(f"Inserted {inserted} orders")
+        except Exception as e:
+            print(f"Failed to insert orders: {e}")
+            transaction.rollback()
+
+    return orders
+
+
+
+
+
 DATABASE_URL = "postgresql://user:password@localhost:5435/db_shop"
 CSV_DIR = "initial-data"
 engine = create_engine(DATABASE_URL)
@@ -264,7 +343,6 @@ CREATE TABLE product_category (
 products = insert_products(products_df)
 
 
-
 # 5. Заполним таблицу order из orders_df(clientName, orderDate, status, totalAmount, products) значениями client_id из
 # словаря clients. Проверка поля Status на допустимость значений (только 'Completed', 'Cancelled', 'Processing').
 # Недопустимые значения заменить на 'Processing'.
@@ -277,6 +355,9 @@ CREATE TABLE "order" (
     FOREIGN KEY (client_id) REFERENCES client(id)
 );
 """
+
+orders = insert_orders(orders_df, clients)
+
 # 6. Используя значение products из orders_df заполним order_item, учитывая, что кол-во товара указано после двоеточия
 # "Чизбургер с говяжьей котлетой и плавленым сыром «Грабли»: 1; Макароны с сырным соусом Mac&Cheese Карбонара с беконом:
 # 1"

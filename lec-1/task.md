@@ -67,9 +67,10 @@ Product
 - `category.name` - UNIQUE, NOT NULL - тк не нужны две одинаковые или пустые категории товаров
 - `product.unit_price` - NOT NULL - тк цена не может быть нулевой
 - `product.name` - NOT NULL UNIQUE - тк в двух блюд с одинаковым названием не должно быть в одном месте
-- `order.date` - TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, время заказа если не указано, то текущее
-- `order_item.quantity` - INT NOT NULL CHECK (quantity > 0) - тк количество должно быть больше нуля
-- `order_item` - UNIQUE (order_id, product_id) - тк если несколько товаров, то нужно увеличивать кол-во
+- `food_order.date` - TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, время заказа если не указано, то текущее
+- `food_order` - UNIQUE (client_id, date) - тк два заказа не могут быть сделаны одним клиентов в одну и ту же секунду
+- `food_order_item.quantity` - INT NOT NULL CHECK (quantity > 0) - тк количество должно быть больше нуля
+- `food_order_item` - UNIQUE (order_id, product_id) - тк если несколько товаров, то нужно увеличивать кол-во
 
 ## 1.2. Скрипт инициализации
 > Будем работать в PostgreSQL
