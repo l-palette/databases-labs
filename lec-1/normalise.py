@@ -11,13 +11,17 @@ def insert_categories(unique_categories):
             inserted = 0
             for category in unique_categories:
                 result = connection.execute(
-                    text("INSERT INTO category (name) VALUES (:name) ON CONFLICT (name) DO NOTHING"),
-                    {'name': category}
+                    text(
+                        "INSERT INTO category (name) VALUES (:name) ON CONFLICT (name) DO NOTHING"
+                    ),
+                    {"name": category},
                 )
                 if result.rowcount > 0:
                     inserted += 1
             transaction.commit()
-            print(f"Inserted {inserted} new categories (total unique: {len(unique_categories)})")
+            print(
+                f"Inserted {inserted} new categories (total unique: {len(unique_categories)})"
+            )
         except Exception as e:
             print(f"Failed to insert categories: {e}")
             transaction.rollback()
@@ -30,25 +34,35 @@ def insert_clients(clients_df) -> dict:
         try:
             inserted = 0
             for _, row in clients_df.iterrows():
-                client_name = row['clientName'].strip() if pd.notna(row['clientName']) else None
-                phone_number = row['phoneNumber'].strip() if pd.notna(row['phoneNumber']) else None
-                username = row['username'].strip() if pd.notna(row['username']) else None
-                password = row['password'].strip() if pd.notna(row['password']) else None
+                client_name = (
+                    row["clientName"].strip() if pd.notna(row["clientName"]) else None
+                )
+                phone_number = (
+                    row["phoneNumber"].strip() if pd.notna(row["phoneNumber"]) else None
+                )
+                username = (
+                    row["username"].strip() if pd.notna(row["username"]) else None
+                )
+                password = (
+                    row["password"].strip() if pd.notna(row["password"]) else None
+                )
 
                 if phone_number and username and password:
                     result = connection.execute(
-                        text("""
+                        text(
+                            """
                             INSERT INTO client (name, phone_number, username, password) 
                             VALUES (:name, :phone, :username, :password)
                             ON CONFLICT (username) DO NOTHING
                             RETURNING id, name
-                        """),
+                        """
+                        ),
                         {
-                            'name': client_name,
-                            'phone': phone_number,
-                            'username': username,
-                            'password': password
-                        }
+                            "name": client_name,
+                            "phone": phone_number,
+                            "username": username,
+                            "password": password,
+                        },
                     )
                     row_result = result.fetchone()
                     if row_result:
@@ -73,8 +87,8 @@ def insert_clients(clients_df) -> dict:
 def clean_numeric_field(value):
     if pd.isna(value):
         return None
-    cleaned = re.sub(r'[^\d.,]', '', str(value))
-    cleaned = cleaned.replace(',', '.')
+    cleaned = re.sub(r"[^\d.,]", "", str(value))
+    cleaned = cleaned.replace(",", ".")
     try:
         return float(cleaned) if cleaned else None
     except:
@@ -88,13 +102,15 @@ def insert_products(products_df) -> dict:
         try:
             inserted = 0
             for _, row in products_df.iterrows():
-                product_name = row['productName'].strip() if pd.notna(row['productName']) else None
+                product_name = (
+                    row["productName"].strip() if pd.notna(row["productName"]) else None
+                )
                 product_id = None
 
                 # Проверяем существование продукта
                 existing = connection.execute(
                     text("SELECT id FROM product WHERE name = :name"),
-                    {'name': product_name}
+                    {"name": product_name},
                 ).fetchone()
 
                 if existing:
@@ -102,36 +118,46 @@ def insert_products(products_df) -> dict:
                     products[product_name] = product_id
                 else:
                     # Вставляем новый продукт
-                    description = row['productDescription'].strip() if pd.notna(row['productDescription']) else None
-                    grams = clean_numeric_field(row['grams'])
-                    calories = clean_numeric_field(row['calories'])
-                    proteins = clean_numeric_field(row['proteins'])
-                    fats = clean_numeric_field(row['fats'])
-                    carbs = clean_numeric_field(row['carbs'])
-                    unit_price = clean_numeric_field(row['unit_price'])
-                    ingredients = row['ingredients'].strip() if pd.notna(row['ingredients']) else None
+                    description = (
+                        row["productDescription"].strip()
+                        if pd.notna(row["productDescription"])
+                        else None
+                    )
+                    grams = clean_numeric_field(row["grams"])
+                    calories = clean_numeric_field(row["calories"])
+                    proteins = clean_numeric_field(row["proteins"])
+                    fats = clean_numeric_field(row["fats"])
+                    carbs = clean_numeric_field(row["carbs"])
+                    unit_price = clean_numeric_field(row["unit_price"])
+                    ingredients = (
+                        row["ingredients"].strip()
+                        if pd.notna(row["ingredients"])
+                        else None
+                    )
 
                     if product_name and unit_price is not None:
                         result = connection.execute(
-                            text("""
+                            text(
+                                """
                                 INSERT INTO product (name, description, grams, calories, proteins, 
                                                    fats, carbs, ingredients, unit_price)
                                 VALUES (:name, :desc, :grams, :calories, :proteins, 
                                        :fats, :carbs, :ingredients, :price)
                                 ON CONFLICT (name) DO NOTHING
                                 RETURNING id
-                            """),
+                            """
+                            ),
                             {
-                                'name': product_name,
-                                'desc': description,
-                                'grams': grams,
-                                'calories': calories,
-                                'proteins': proteins,
-                                'fats': fats,
-                                'carbs': carbs,
-                                'ingredients': ingredients,
-                                'price': unit_price
-                            }
+                                "name": product_name,
+                                "desc": description,
+                                "grams": grams,
+                                "calories": calories,
+                                "proteins": proteins,
+                                "fats": fats,
+                                "carbs": carbs,
+                                "ingredients": ingredients,
+                                "price": unit_price,
+                            },
                         )
                         product_result = result.fetchone()
                         if product_result:
@@ -141,7 +167,11 @@ def insert_products(products_df) -> dict:
 
                 # Обрабатываем категории для продукта (новые и существующие)
                 if product_id:
-                    category_str = row['categoryName'].strip() if pd.notna(row['categoryName']) else None
+                    category_str = (
+                        row["categoryName"].strip()
+                        if pd.notna(row["categoryName"])
+                        else None
+                    )
                     if category_str:
                         categories_multiple = category_str.split(";")
                         for one_category in categories_multiple:
@@ -151,14 +181,21 @@ def insert_products(products_df) -> dict:
                                 category_id = categories[one_category]
                                 # Вставляем связь product-category
                                 connection.execute(
-                                    text("""
+                                    text(
+                                        """
                                         INSERT INTO product_category (product_id, category_id)
                                         VALUES (:product_id, :category_id)
                                         ON CONFLICT (product_id, category_id) DO NOTHING
-                                    """),
-                                    {'product_id': product_id, 'category_id': category_id}
+                                    """
+                                    ),
+                                    {
+                                        "product_id": product_id,
+                                        "category_id": category_id,
+                                    },
                                 )
-                                print(f" Inserted product_id - {product_id}, category_id - {category_id} ")
+                                print(
+                                    f" Inserted product_id - {product_id}, category_id - {category_id} "
+                                )
 
             # Получаем все продукты
             result = connection.execute(text("SELECT id, name FROM product"))
@@ -176,9 +213,9 @@ def insert_products(products_df) -> dict:
 
 
 def validate_status(status):
-    valid_statuses = ['Completed', 'Cancelled', 'Processing']
+    valid_statuses = ["Completed", "Cancelled", "Processing"]
     if pd.isna(status) or status not in valid_statuses:
-        return 'Processing'
+        return "Processing"
     return status
 
 
@@ -189,25 +226,31 @@ def insert_orders(orders_df, clients):
         try:
             inserted = 0
             for idx, row in orders_df.iterrows():
-                client_name = row['clientName'].strip() if pd.notna(row['clientName']) else None
+                client_name = (
+                    row["clientName"].strip() if pd.notna(row["clientName"]) else None
+                )
 
                 if client_name in clients:
                     client_id = clients[client_name]
-                    order_date = pd.to_datetime(row['orderDate']) if pd.notna(row['orderDate']) else datetime.now()
-                    status = validate_status(row['status'] if pd.notna(row['status']) else None)
+                    order_date = (
+                        pd.to_datetime(row["orderDate"])
+                        if pd.notna(row["orderDate"])
+                        else datetime.now()
+                    )
+                    status = validate_status(
+                        row["status"] if pd.notna(row["status"]) else None
+                    )
 
                     result = connection.execute(
-                        text("""
+                        text(
+                            """
                             INSERT INTO food_order (client_id, date, status)
                             VALUES (:client_id, :date, CAST(:status AS ENUM_STATUS))
                             ON CONFLICT (client_id, date) DO UPDATE SET status = EXCLUDED.status
                             RETURNING id
-                        """),
-                        {
-                            'client_id': client_id,
-                            'date': order_date,
-                            'status': status
-                        }
+                        """
+                        ),
+                        {"client_id": client_id, "date": order_date, "status": status},
                     )
                     order_result = result.fetchone()
 
@@ -215,10 +258,9 @@ def insert_orders(orders_df, clients):
                         order_id = order_result[0]
                         inserted += 1
 
-
-                        products_to_insert = row['products'].split(';')
+                        products_to_insert = row["products"].split(";")
                         for product_item in products_to_insert:
-                            product_item = product_item.split(':')
+                            product_item = product_item.split(":")
                             product_item_name = product_item[0].strip()
                             product_item_count = int(product_item[1].strip())
 
@@ -226,19 +268,23 @@ def insert_orders(orders_df, clients):
                                 product_item_id = products[product_item_name]
 
                                 connection.execute(
-                                    text("""
+                                    text(
+                                        """
                                         INSERT INTO food_order_item (food_order_id, product_id, quantity)
                                         VALUES (:order_id, :product_id, :quantity)
                                         ON CONFLICT (food_order_id, product_id) 
                                         DO UPDATE SET quantity = EXCLUDED.quantity
-                                    """),
+                                    """
+                                    ),
                                     {
-                                        'order_id': order_id,
-                                        'product_id': product_item_id,
-                                        'quantity': product_item_count
-                                    }
+                                        "order_id": order_id,
+                                        "product_id": product_item_id,
+                                        "quantity": product_item_count,
+                                    },
                                 )
-                                print(f"Inserted item for order_id - {order_id}, product_id - {product_item_id}, quantity - {product_item_count}")
+                                print(
+                                    f"Inserted item for order_id - {order_id}, product_id - {product_item_id}, quantity - {product_item_count}"
+                                )
 
             transaction.commit()
             print(f"Inserted {inserted} orders")
@@ -249,9 +295,6 @@ def insert_orders(orders_df, clients):
     return orders
 
 
-
-
-
 DATABASE_URL = "postgresql://user:password@localhost:5435/db_shop"
 CSV_DIR = "initial-data"
 engine = create_engine(DATABASE_URL)
@@ -260,9 +303,9 @@ with engine.connect() as connection:
     result = connection.execute(text("SELECT 1"))
     print("Connection successful:", result.fetchone())
 
-clients_df = pd.read_csv(f'{CSV_DIR}/clients.csv')
-products_df = pd.read_csv(f'{CSV_DIR}/product.csv')
-orders_df = pd.read_csv(f'{CSV_DIR}/orders.csv')
+clients_df = pd.read_csv(f"{CSV_DIR}/clients.csv")
+products_df = pd.read_csv(f"{CSV_DIR}/product.csv")
+orders_df = pd.read_csv(f"{CSV_DIR}/orders.csv")
 
 # 1. Вынесем все уникальные значения из products_df (productName, productDescription, grams, calories, proteins, fats,
 # carbs, ingredients, unit_price, categoryName) столбца categoryName в таблицу category, сохраним все id в словарь
@@ -275,7 +318,7 @@ CREATE TABLE category (
 """
 
 unique_categories = set()
-for category in products_df['categoryName'].unique():
+for category in products_df["categoryName"].unique():
     category = category.strip()
     if category:
         categories_multiple = category.split(";")
