@@ -197,97 +197,115 @@ SELECT
 FROM 
     product p
 JOIN 
-    order_item oi ON p.id = oi.product_id
+    food_order_item oi ON p.id = oi.product_id
 GROUP BY 
     p.id, p.name
 ORDER BY 
     total_quantity DESC
 LIMIT 5; 
 ```
+![img.png](images/img.png)
 2) Рассчитать ежемесячную выручку магазина за последний год.
 ```sql
-SELECT 
-    DATE_TRUNC('month', o.date) AS month,
-    ROUND(SUM(p.unit_price * oi.quantity), 2) AS monthly_revenue
-FROM 
-    "order" o
-JOIN 
-    order_item oi ON o.id = oi.order_id
-JOIN 
-    product p ON oi.product_id = p.id
-WHERE 
-    o.date >= DATE_TRUNC('year', CURRENT_DATE - INTERVAL '1 year')
-GROUP BY 
-    month
-ORDER BY 
-    month;
-```
-3) Найти клиента, сделавшего самый дорогой заказ за всё время.
-```sql
-WITH order_totals AS (
+WITH monthly_stats AS (
     SELECT 
-        o.id AS order_id,
-        o.client_id,
-        c.name AS client_name,
-        SUM(p.unit_price * oi.quantity) AS total_order_value
+        DATE_TRUNC('month', fo.date) AS month_start,
+        fo.id AS order_id,
+        SUM(foi.quantity * p.unit_price) AS order_total
     FROM 
-        "order" o
-    JOIN 
-        order_item oi ON o.id = oi.order_id
-    JOIN 
-        product p ON oi.product_id = p.id
-    JOIN 
-        client c ON o.client_id = c.id
+        food_order fo
+        INNER JOIN food_order_item foi ON fo.id = foi.food_order_id
+        INNER JOIN product p ON foi.product_id = p.id
+    WHERE 
+        fo.date >= CURRENT_DATE - INTERVAL '1 year'
+        AND fo.status = 'Completed'
     GROUP BY 
-        o.id, o.client_id, c.name
+        DATE_TRUNC('month', fo.date),
+        fo.id
 )
 SELECT 
-    client_id, 
-    client_name, 
-    MAX(total_order_value) AS max_order_value
+    TO_CHAR(month_start, 'YYYY-MM') AS month,
+    TO_CHAR(month_start, 'Month YYYY') AS month_name,
+    COUNT(order_id) AS total_orders,
+    SUM(order_total) AS monthly_revenue,
+    ROUND(AVG(order_total), 2) AS avg_order_value,
+    MIN(order_total) AS min_order_value,
+    MAX(order_total) AS max_order_value
 FROM 
-    order_totals
+    monthly_stats
+GROUP BY 
+    month_start
 ORDER BY 
-    max_order_value DESC
+    month_start;
+```
+![img.png](images/img_1.png)
+3) Найти клиента, сделавшего самый дорогой заказ за всё время.
+```sql
+SELECT
+    c.name AS client_name,
+    SUM(p.unit_price * foi.quantity) AS total_order_value
+FROM
+    client c
+JOIN
+    food_order fo ON c.id = fo.client_id
+JOIN
+    food_order_item foi ON fo.id = foi.food_order_id
+JOIN
+    product p ON foi.product_id = p.id
+GROUP BY
+    c.name
+ORDER BY
+    total_order_value DESC
 LIMIT 1;
 ```
+![img.png](images/img_2.png)
 4) Определить категорию товаров с самой высокой средней ценой заказа.
 ```sql
-WITH category_order_values AS (
+WITH category_order_stats AS (
     SELECT 
         c.id AS category_id,
         c.name AS category_name,
-        AVG(p.unit_price * oi.quantity) AS avg_order_value
+        foi.food_order_id,
+        foi.product_id,
+        foi.quantity,
+        p.unit_price,
+        (foi.quantity * p.unit_price) AS item_total
     FROM 
         category c
-    JOIN 
-        product p ON c.id = p.category_id
-    JOIN 
-        order_item oi ON p.id = oi.product_id
-    JOIN 
-        "order" o ON oi.order_id = o.id
-    GROUP BY 
-        c.id, c.name
+        INNER JOIN product_category pc ON c.id = pc.category_id
+        INNER JOIN product p ON pc.product_id = p.id
+        INNER JOIN food_order_item foi ON p.id = foi.product_id
+        INNER JOIN food_order fo ON foi.food_order_id = fo.id
+    WHERE 
+        fo.status = 'Completed'  -- Только завершенные заказы
+        AND LOWER(c.name) != 'other'  -- Исключаем категорию 'other'
 )
 SELECT 
-    category_id, 
-    category_name, 
-    ROUND(avg_order_value, 2) AS average_order_value
+    category_id,
+    category_name,
+    COUNT(DISTINCT food_order_id) AS orders_count,
+    COUNT(*) AS order_items_count,
+    SUM(quantity) AS total_quantity_sold,
+    ROUND(AVG(item_total), 2) AS avg_order_item_value,
+    SUM(item_total) AS total_revenue
 FROM 
-    category_order_values
+    category_order_stats
+GROUP BY 
+    category_id, category_name
 ORDER BY 
-    average_order_value DESC
+    avg_order_item_value DESC
 LIMIT 1;
 ```
+![img.png](images/img_3.png)
 5) Посчитать процент отмененных заказов (Status = 'Cancelled') от общего числа.
 ```sql
 WITH total_orders AS (
     SELECT COUNT(*) AS total 
-    FROM "order"
+    FROM food_order
 ),
 cancelled_orders AS (
     SELECT COUNT(*) AS cancelled 
-    FROM "order" 
+    FROM food_order 
     WHERE status = 'Cancelled'
 )
 SELECT 
@@ -295,6 +313,7 @@ SELECT
 FROM 
     total_orders, cancelled_orders;
 ```
+![img.png](images/img_4.png)
 # Блок 2: Загрузка данных в БД
 ## 2.1. Генерация исходных данных
 - `clients.csv`: clientName, phoneNumber, username, password
@@ -317,25 +336,245 @@ Anna Emily Smith | 2025-03-16 | | 107 | Макароны с сырным соу�
 
 ## 2.2. Нормализация данных
 - Очистка данных от дубликатов
+```python3
+before_products = len(products_df)
+before_clients = len(clients_df)
+
+products_df = products_df.drop_duplicates(subset=['productName'], keep='first')
+clients_df = clients_df.drop_duplicates(subset=['username'], keep='first')
+
+print(f"Products: {before_products} → {len(products_df)} (удалено {before_products - len(products_df)})")
+print(f"Clients: {before_clients} → {len(clients_df)} (удалено {before_clients - len(clients_df)})") 
+```
 - Обработка пропусков в поле Category (заменить на значение 'Other').
+```python3
+category_str = (
+    row["categoryName"].strip()
+    if pd.notna(row["categoryName"])
+    else "Other"
+)
+```
 - Преобразование поля Price к числовому типу, удалив нечисловые символы.
+```python3
+def clean_numeric_field(value):
+    if pd.isna(value):
+        return None
+    cleaned = re.sub(r"[^\d.,]", "", str(value))
+    cleaned = cleaned.replace(",", ".")
+    try:
+        return float(cleaned) if cleaned else None
+    except:
+        return None
+```
 - Проверка поля Status на допустимость значений (только 'Completed', 'Cancelled', 'Processing'). Недопустимые значения 
 заменить на 'Processing'.
+```python3
+def validate_status(status):
+    valid_statuses = ["Completed", "Cancelled", "Processing"]
+    if pd.isna(status) or status not in valid_statuses:
+        return "Processing"
+    return status
+```
 
 ## 2.3. Вывод
 Объясните, какие аномалии устраняет проведенная вами очистка данных.
 
- 
 # Блок 3: Проектирование хранилища и визуализация (5 баллов)
 Задание:
 
 1) Спроектируйте упрощенную схему хранилища данных (Data Warehouse) по принципу «звезда» для анализа продаж. Опишите 
 таблицу фактов и таблицы измерений.
 
+### Создание таблиц измерений
+
+```sql
+-- 1. Создание измерения даты
+CREATE TABLE dim_date (
+    date_id SERIAL PRIMARY KEY,
+    full_date DATE NOT NULL UNIQUE,
+    year INT,
+    quarter INT,
+    month INT,
+    month_name VARCHAR(20),
+    week INT,
+    day_of_week INT,
+    day_name VARCHAR(20),
+    is_weekend BOOLEAN
+);
+
+-- 2. Создание измерения продуктов
+CREATE TABLE dim_product (
+    product_id INT PRIMARY KEY,
+    product_name VARCHAR(100),
+    description VARCHAR(255),
+    grams NUMERIC(6,2),
+    calories NUMERIC(6,2),
+    proteins NUMERIC(5,2),
+    fats NUMERIC(5,2),
+    carbs NUMERIC(5,2)
+);
+
+-- 3. Создание измерения категорий
+CREATE TABLE dim_category (
+    category_id INT PRIMARY KEY,
+    category_name VARCHAR(100),
+    category_type VARCHAR(50)
+);
+
+-- 4. Создание измерения клиентов
+CREATE TABLE dim_client (
+    client_id INT PRIMARY KEY,
+    client_name VARCHAR(100),
+    username VARCHAR(16),
+    phone_number VARCHAR(20),
+    registration_date DATE
+);
+```
+### Создание таблицы фактов
+```sql
+CREATE TABLE fact_sales (
+    sale_id SERIAL PRIMARY KEY,
+    date_id INT NOT NULL,
+    product_id INT NOT NULL,
+    category_id INT NOT NULL,
+    client_id INT NOT NULL,
+    order_id INT NOT NULL,
+    quantity INT NOT NULL,
+    unit_price NUMERIC(10,2) NOT NULL,
+    total_amount NUMERIC(10,2) NOT NULL,
+    order_status VARCHAR(20),
+    FOREIGN KEY (date_id) REFERENCES dim_date(date_id),
+    FOREIGN KEY (product_id) REFERENCES dim_product(product_id),
+    FOREIGN KEY (category_id) REFERENCES dim_category(category_id),
+    FOREIGN KEY (client_id) REFERENCES dim_client(client_id)
+);
+```
+### Заполнение таблиц измерений данными
+
+```sql
+-- Заполнение dim_date (генерируем даты за последние 2 года)
+INSERT INTO dim_date (full_date, year, quarter, month, month_name, week, day_of_week, day_name, is_weekend)
+SELECT 
+    date::date AS full_date,
+    EXTRACT(YEAR FROM date) AS year,
+    EXTRACT(QUARTER FROM date) AS quarter,
+    EXTRACT(MONTH FROM date) AS month,
+    TO_CHAR(date, 'Month') AS month_name,
+    EXTRACT(WEEK FROM date) AS week,
+    EXTRACT(DOW FROM date) AS day_of_week,
+    TO_CHAR(date, 'Day') AS day_name,
+    EXTRACT(DOW FROM date) IN (0, 6) AS is_weekend
+FROM generate_series(
+    CURRENT_DATE - INTERVAL '2 years',
+    CURRENT_DATE,
+    '1 day'::interval
+) AS date
+ON CONFLICT (full_date) DO NOTHING;
+
+-- Заполнение dim_product из существующих данных
+INSERT INTO dim_product (product_id, product_name, description, grams, calories, proteins, fats, carbs)
+SELECT 
+    id,
+    name,
+    description,
+    grams,
+    calories,
+    proteins,
+    fats,
+    carbs
+FROM product
+ON CONFLICT (product_id) DO NOTHING;
+
+-- Заполнение dim_category из существующих данных
+INSERT INTO dim_category (category_id, category_name, category_type)
+SELECT 
+    id,
+    name,
+    CASE 
+        WHEN LOWER(name) IN ('популярное', 'фастфуд', 'напитки') THEN 'Основная'
+        ELSE 'Дополнительная'
+    END AS category_type
+FROM category
+ON CONFLICT (category_id) DO NOTHING;
+
+-- Заполнение dim_client из существующих данных
+INSERT INTO dim_client (client_id, client_name, username, phone_number, registration_date)
+SELECT 
+    id,
+    name,
+    username,
+    phone_number,
+    CURRENT_DATE - INTERVAL '1 year' * RANDOM() AS registration_date -- примерная дата регистрации
+FROM client
+ON CONFLICT (client_id) DO NOTHING;
+```
+### Заполнение таблицы фактов
+
+```sql
+INSERT INTO fact_sales (
+    date_id, 
+    product_id, 
+    category_id, 
+    client_id, 
+    order_id, 
+    quantity, 
+    unit_price, 
+    total_amount, 
+    order_status
+)
+SELECT 
+    dd.date_id,
+    p.id AS product_id,
+    pc.category_id,
+    fo.client_id,
+    fo.id AS order_id,
+    foi.quantity,
+    p.unit_price,
+    (foi.quantity * p.unit_price) AS total_amount,
+    fo.status::VARCHAR
+FROM 
+    food_order fo
+    JOIN food_order_item foi ON fo.id = foi.food_order_id
+    JOIN product p ON foi.product_id = p.id
+    JOIN product_category pc ON p.id = pc.product_id
+    JOIN dim_date dd ON dd.full_date = DATE(fo.date)
+WHERE 
+    EXISTS (SELECT 1 FROM dim_product WHERE product_id = p.id)
+    AND EXISTS (SELECT 1 FROM dim_category WHERE category_id = pc.category_id)
+    AND EXISTS (SELECT 1 FROM dim_client WHERE client_id = fo.client_id);
+```
+
 2) Напишите SQL-запрос, который подготавливает витрину данных для построения дашборда: «Выручка и количество заказов по 
 категориям товаров и месяцам».
-
+```sql
+CREATE VIEW mart_category_monthly_sales AS
+SELECT 
+    dd.year,
+    dd.month,
+    dd.month_name,
+    dc.category_name,
+    dc.category_type,
+    COUNT(DISTINCT fs.order_id) AS total_orders,
+    SUM(fs.quantity) AS total_items,
+    ROUND(SUM(fs.total_amount), 2) AS total_revenue,
+    ROUND(AVG(fs.total_amount), 2) AS avg_item_value
+FROM 
+    fact_sales fs
+    JOIN dim_date dd ON fs.date_id = dd.date_id
+    JOIN dim_category dc ON fs.category_id = dc.category_id
+WHERE 
+    fs.order_status = 'Completed'
+GROUP BY 
+    dd.year,
+    dd.month,
+    dd.month_name,
+    dc.category_name,
+    dc.category_type
+ORDER BY 
+    dd.year DESC,
+    dd.month DESC,
+    total_revenue DESC;
+```
+![img.png](images/img_5.png)
 3) Постройте эту визуализацию (график или диаграмму) с помощью любого инструмента (Excel, Google Data Studio, Power BI,
 Python matplotlib) и сделайте краткий вывод по результатам.
-
----

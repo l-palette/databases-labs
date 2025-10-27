@@ -170,7 +170,7 @@ def insert_products(products_df) -> dict:
                     category_str = (
                         row["categoryName"].strip()
                         if pd.notna(row["categoryName"])
-                        else None
+                        else "Other"
                     )
                     if category_str:
                         categories_multiple = category_str.split(";")
@@ -307,6 +307,15 @@ clients_df = pd.read_csv(f"{CSV_DIR}/clients.csv")
 products_df = pd.read_csv(f"{CSV_DIR}/products.csv")
 orders_df = pd.read_csv(f"{CSV_DIR}/orders.csv")
 
+before_products = len(products_df)
+before_clients = len(clients_df)
+
+products_df = products_df.drop_duplicates(subset=['productName'], keep='first')
+clients_df = clients_df.drop_duplicates(subset=['username'], keep='first')
+
+print(f"Products: {before_products} → {len(products_df)} (удалено {before_products - len(products_df)})")
+print(f"Clients: {before_clients} → {len(clients_df)} (удалено {before_clients - len(clients_df)})")
+
 # 1. Вынесем все уникальные значения из products_df (productName, productDescription, grams, calories, proteins, fats,
 # carbs, ingredients, unit_price, categoryName) столбца categoryName в таблицу category, сохраним все id в словарь
 # categories
@@ -326,6 +335,8 @@ for category in products_df["categoryName"].unique():
             for one_category in categories_multiple:
                 one_category = one_category.strip()
                 unique_categories.add(one_category)
+
+unique_categories.add("Other")
 
 print(f"Unique categories to be inserted: {unique_categories}")
 
