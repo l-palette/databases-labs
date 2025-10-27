@@ -4,60 +4,70 @@
 ### Сущность клиент
 > Хранит информацию о клиентах. PK: ClientID.
 
-Сlient
-- `ID` (PRIMARY KEY) - INT, тк уникальный идентификатор, целое число.
-- `Name` - VARCHAR(100), тк 100 символов хватит для имени клиента
-- `PhoneNumber` - VARCHAR(20), тк 20 символов точно хватит для номера телефона
-- `Username` - VARCHAR(16), тк имя пользователя не должно быть длинным
-- `Password` - VARCHAR(128), тк 128 это длина SHA-512 в hex
+client
+- `id` (PRIMARY KEY) - INT, тк уникальный идентификатор, целое число.
+- `name` - VARCHAR(100), тк 100 символов хватит для имени клиента
+- `phone_number` - VARCHAR(20), тк 20 символов точно хватит для номера телефона
+- `username` - VARCHAR(16), тк имя пользователя не должно быть длинным
+- `password` - VARCHAR(128), тк 128 это длина SHA-512 в hex
 
-### Сущность заказ
-> Хранит заказы с датой и статусом. PK: OrderID. FK: CustomerID → Customers
+---
 
-Order
-- `ID` (PRIMARY KEY) - INT, тк уникальный идентификатор, целое число.
-- `ClientID` - INT, тк внешний ключ на Client(ID)
-- `Date` - DATETIME, так как дата и время заказа
-- `Status` - ENUM('Completed', 'Cancelled', 'Processing'), тк других значений быть не должно
-
-### Элементы заказа
-> Разбивает заказы на товары (многие-ко-многим). PK: (OrderID, ProductID). FK: OrderID → Orders, ProductID → Products.
-
-OrderItem
-- `ID` (PRIMARY KEY) - INT, тк уникальный идентификатор, целое число.
-- `ProductID` - INT, тк внешний ключ на Product(ID)
-- `Quantity` - INT, тк количество товаров
-- `OrderID` - INT, тк внешний ключ на Order(ID)
-
-### Категории товаров
+### Сущность категории товаров
 > Хранит информацию о категориях. PK: CategoryID.
 
-Category
-- `ID` (PRIMARY KEY) - INT, тк уникальный идентификатор, целое число.
-- `Name` - VARCHAR(100), тк 100 символов хватит для категории товара
+category
+- `id` (PRIMARY KEY) - INT, тк уникальный идентификатор, целое число.
+- `name` - VARCHAR(100), тк 100 символов хватит для категории товара
+
+---
+
+### Сущность товар
+> Хранит товары с категорией и ценой. PK: ProductID
+
+product
+- `id` (PRIMARY KEY) - INT, тк уникальный идентификатор, целое число.
+- `name` - VARCHAR(100), тк 100 символов хватит для названия товара
+- `description` - VARCHAR(255), тк описание не должно быть сильно большим
+- `grams` - NUMERIC(6,2), тк нецелое число
+- `calories` - NUMERIC(6,2), тк нецелое число
+- `proteins` - NUMERIC(5,2), тк нецелое число
+- `fats` - NUMERIC(5,2), тк нецелое число
+- `carbs` - NUMERIC(5,2), тк нецелое число
+- `ingredients` - TEXT, тк нельзя ограничить по длине
+- `unit_price` - NUMERIC(10,2), тк цена с двумя знаками после запятой
+
+---
 
 ### Товар - категория
 > Хранит связь категории и товара. Много ко многим.
 
-ProductCategory
-- `ID`(PRIMARY KEY) - INT, тк уникальный идентификатор, целое число
-- `ProductID` - INT, тк внешний ключ на Product(ID)
-- `CategoryID` - INT, тк внешний ключ на Category(ID)
+product_category
+- `id`(PRIMARY KEY) - INT, тк уникальный идентификатор, целое число
+- `product_id` - INT, тк внешний ключ на Product(ID)
+- `category_id` - INT, тк внешний ключ на Category(ID)
 
-### Товары
-> Хранит товары с категорией и ценой. PK: ProductID
+---
 
-Product
-- `ID` (PRIMARY KEY) - INT, тк уникальный идентификатор, целое число.
-- `Name` - VARCHAR(100), тк 100 символов хватит для названия товара
-- `Description` - VARCHAR(255), тк описание не должно быть сильно большим
-- `Grams` - NUMERIC(6,2), тк нецелое число
-- `Calories` - NUMERIC(6,2), тк нецелое число
-- `Proteins` - NUMERIC(5,2), тк нецелое число
-- `Fats` - NUMERIC(5,2), тк нецелое число
-- `Carbs` - NUMERIC(5,2), тк нецелое число
-- `Ingredients` - TEXT, тк нельзя ограничить по длине
-- `UnitPrice` - NUMERIC(10,2), тк цена с двумя знаками после запятой
+### Сущность заказ
+> Хранит заказы с датой и статусом. PK: OrderID. FK: Client_id → Clients
+
+food_order
+- `id` (PRIMARY KEY) - INT, тк уникальный идентификатор, целое число.
+- `client_id` - INT, тк внешний ключ на Client(ID)
+- `date` - DATETIME, так как дата и время заказа
+- `status` - ENUM('Completed', 'Cancelled', 'Processing'), тк других значений быть не должно
+
+### Сущность элементы заказа
+> Разбивает заказы на товары (многие-ко-многим). PK: (OrderID, ProductID). FK: OrderID → Orders, ProductID → Products.
+
+food_order_item
+- `id` (PRIMARY KEY) - INT, тк уникальный идентификатор, целое число.
+- `product_id` - INT, тк внешний ключ на Product(ID)
+- `quantity` - INT, тк количество товаров
+- `food_order_id` - INT, тк внешний ключ на Order(ID)
+
+
 
 Также добавлю ограничения:
 

@@ -15,7 +15,7 @@ CREATE TABLE client (
     name VARCHAR(100),
     phone_number VARCHAR(20) NOT NULL UNIQUE,
     username VARCHAR(16) NOT NULL UNIQUE,
-    password VARCHAR(255) NOT NULL
+    password VARCHAR(128) NOT NULL
 );
 
 -- Создание таблицы категорий
