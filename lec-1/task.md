@@ -44,8 +44,8 @@ product
 
 product_category
 - `id`(PRIMARY KEY) - INT, тк уникальный идентификатор, целое число
-- `product_id` - INT, тк внешний ключ на Product(ID)
-- `category_id` - INT, тк внешний ключ на Category(ID)
+- `product_id` - INT, тк внешний ключ на product(id)
+- `category_id` - INT, тк внешний ключ на category(id)
 
 ---
 
@@ -54,7 +54,7 @@ product_category
 
 food_order
 - `id` (PRIMARY KEY) - INT, тк уникальный идентификатор, целое число.
-- `client_id` - INT, тк внешний ключ на Client(ID)
+- `client_id` - INT, тк внешний ключ на client(id)
 - `date` - DATETIME, так как дата и время заказа
 - `status` - ENUM('Completed', 'Cancelled', 'Processing'), тк других значений быть не должно
 
@@ -63,10 +63,9 @@ food_order
 
 food_order_item
 - `id` (PRIMARY KEY) - INT, тк уникальный идентификатор, целое число.
-- `product_id` - INT, тк внешний ключ на Product(ID)
+- `product_id` - INT, тк внешний ключ на product(id)
 - `quantity` - INT, тк количество товаров
-- `food_order_id` - INT, тк внешний ключ на Order(ID)
-
+- `food_order_id` - INT, тк внешний ключ на food_order(id)
 
 
 Также добавлю ограничения:
@@ -77,7 +76,7 @@ food_order_item
 - `category.name` - UNIQUE, NOT NULL - тк не нужны две одинаковые или пустые категории товаров
 - `product.unit_price` - NOT NULL - тк цена не может быть нулевой
 - `product.name` - NOT NULL UNIQUE - тк в двух блюд с одинаковым названием не должно быть в одном месте
-- `food_order.date` - TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, время заказа если не указано, то текущее
+- `food_order.date` - TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP - время заказа если не указано, то текущее
 - `food_order` - UNIQUE (client_id, date) - тк два заказа не могут быть сделаны одним клиентов в одну и ту же секунду
 - `food_order_item.quantity` - INT NOT NULL CHECK (quantity > 0) - тк количество должно быть больше нуля
 - `food_order_item` - UNIQUE (order_id, product_id) - тк если несколько товаров, то нужно увеличивать кол-во
@@ -85,13 +84,14 @@ food_order_item
 ## 1.2. Скрипт инициализации
 > Будем работать в PostgreSQL
 
+Скрипт инициализации лежит в `init.sql`
 ```sql
 -- Создание последовательностей
 CREATE SEQUENCE IF NOT EXISTS client_id_seq START WITH 1;
-CREATE SEQUENCE IF NOT EXISTS order_id_seq START WITH 1;
+CREATE SEQUENCE IF NOT EXISTS food_order_id_seq START WITH 1;
 CREATE SEQUENCE IF NOT EXISTS category_id_seq START WITH 1;
 CREATE SEQUENCE IF NOT EXISTS product_id_seq START WITH 1;
-CREATE SEQUENCE IF NOT EXISTS order_item_id_seq START WITH 1;
+CREATE SEQUENCE IF NOT EXISTS food_order_item_id_seq START WITH 1;
 CREATE SEQUENCE IF NOT EXISTS product_category_id_seq START WITH 1;
 
 -- Создание типов
@@ -103,21 +103,21 @@ CREATE TABLE client (
     name VARCHAR(100),
     phone_number VARCHAR(20) NOT NULL UNIQUE,
     username VARCHAR(16) NOT NULL UNIQUE,
-    password VARCHAR(255) NOT NULL
+    password VARCHAR(128) NOT NULL
 );
 
 -- Создание таблицы категорий
 CREATE TABLE category (
     id INT PRIMARY KEY DEFAULT nextval('category_id_seq'),
-    name VARCHAR(100) NOT NULL UNIQUE,
+    name VARCHAR(100) NOT NULL UNIQUE
 );
 
 -- Создание таблицы товаров
 CREATE TABLE product (
     id INT PRIMARY KEY DEFAULT nextval('product_id_seq'),
-    name VARCHAR(100),
+    name VARCHAR(100) NOT NULL UNIQUE,
     description VARCHAR(255),
-    grams NUMERIC(6,2), 
+    grams NUMERIC(6,2),
     calories NUMERIC(6,2),
     proteins NUMERIC(5,2),
     fats NUMERIC(5,2),
@@ -137,36 +137,32 @@ CREATE TABLE product_category (
 );
 
 -- Создание таблицы заказов
-CREATE TABLE "order" (
-    id INT PRIMARY KEY DEFAULT nextval('order_id_seq'),
+CREATE TABLE food_order (
+    id INT PRIMARY KEY DEFAULT nextval('food_order_id_seq'),
     client_id INT NOT NULL,
     date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     status ENUM_STATUS,
-    FOREIGN KEY (client_id) REFERENCES client(id)
+    FOREIGN KEY (client_id) REFERENCES client(id),
+    UNIQUE (client_id, date)
 );
 
 -- Создание таблицы элементов заказа
-CREATE TABLE order_item (
-    id INT PRIMARY KEY DEFAULT nextval('order_item_id_seq'),
-    order_id INT NOT NULL,
+CREATE TABLE food_order_item (
+    id INT PRIMARY KEY DEFAULT nextval('food_order_item_id_seq'),
+    food_order_id INT NOT NULL,
     product_id INT NOT NULL,
     quantity INT NOT NULL CHECK (quantity > 0),
-    FOREIGN KEY (order_id) REFERENCES "order"(id),
+    FOREIGN KEY (food_order_id) REFERENCES food_order(id),
     FOREIGN KEY (product_id) REFERENCES product(id),
-    UNIQUE (order_id, product_id)
+    UNIQUE (food_order_id, product_id)
 );
-
--- Добавление индексов для улучшения производительности
-CREATE INDEX idx_product_category_product ON product_category(product_id);
-CREATE INDEX idx_product_category_category ON product_category(category_id);
-CREATE INDEX idx_order_item_order ON order_item(order_id);
-CREATE INDEX idx_order_item_product ON order_item(product_id);
-CREATE INDEX idx_order_client ON "order"(client_id);
 ```
 
 ## 1.3. SQL-запросы
 Для написания запросов необходимо поднять базу данных и заполнить ее значениями. Заполнение значениями будет описано в 
 блоке 2, а инициализация БД здесь.
+
+Поднятие базы данных лежит в `docker-compose.yml`
 ```bash
 services:
   db:
@@ -180,14 +176,16 @@ services:
       POSTGRES_DB: db_shop
       PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
-      - ./postgres_data:/var/lib/postgresql/data
+      - ./postgres-data:/var/lib/postgresql/data
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     restart: unless-stopped
 ```
 
 ```bash
 docker exec -it db_shop_container /bin/bash
-  psql -U user -d db_shop
+```
+```bash
+psql -U user -d db_shop
 ```
 
 1) Вывести топ-5 самых продаваемых товаров по количеству за весь период.

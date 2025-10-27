@@ -304,7 +304,7 @@ with engine.connect() as connection:
     print("Connection successful:", result.fetchone())
 
 clients_df = pd.read_csv(f"{CSV_DIR}/clients.csv")
-products_df = pd.read_csv(f"{CSV_DIR}/product.csv")
+products_df = pd.read_csv(f"{CSV_DIR}/products.csv")
 orders_df = pd.read_csv(f"{CSV_DIR}/orders.csv")
 
 # 1. Вынесем все уникальные значения из products_df (productName, productDescription, grams, calories, proteins, fats,
