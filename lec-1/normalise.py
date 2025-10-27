@@ -87,6 +87,7 @@ def insert_products(products_df) -> dict:
             inserted = 0
             for _, row in products_df.iterrows():
                 product_name = row['productName'].strip() if pd.notna(row['productName']) else None
+                product_id = None
 
                 # Проверяем существование продукта
                 existing = connection.execute(
@@ -95,45 +96,67 @@ def insert_products(products_df) -> dict:
                 ).fetchone()
 
                 if existing:
-                    products[product_name] = existing[0]
-                    continue
+                    product_id = existing[0]
+                    products[product_name] = product_id
+                else:
+                    # Вставляем новый продукт
+                    description = row['productDescription'].strip() if pd.notna(row['productDescription']) else None
+                    grams = clean_numeric_field(row['grams'])
+                    calories = clean_numeric_field(row['calories'])
+                    proteins = clean_numeric_field(row['proteins'])
+                    fats = clean_numeric_field(row['fats'])
+                    carbs = clean_numeric_field(row['carbs'])
+                    unit_price = clean_numeric_field(row['unit_price'])
+                    ingredients = row['ingredients'].strip() if pd.notna(row['ingredients']) else None
 
-                description = row['productDescription'].strip() if pd.notna(row['productDescription']) else None
-                grams = clean_numeric_field(row['grams'])
-                calories = clean_numeric_field(row['calories'])
-                proteins = clean_numeric_field(row['proteins'])
-                fats = clean_numeric_field(row['fats'])
-                carbs = clean_numeric_field(row['carbs'])
-                unit_price = clean_numeric_field(row['unit_price'])
-                ingredients = row['ingredients'].strip() if pd.notna(row['ingredients']) else None
+                    if product_name and unit_price is not None:
+                        result = connection.execute(
+                            text("""
+                                INSERT INTO product (name, description, grams, calories, proteins, 
+                                                   fats, carbs, ingredients, unit_price)
+                                VALUES (:name, :desc, :grams, :calories, :proteins, 
+                                       :fats, :carbs, :ingredients, :price)
+                                ON CONFLICT (name) DO NOTHING
+                                RETURNING id
+                            """),
+                            {
+                                'name': product_name,
+                                'desc': description,
+                                'grams': grams,
+                                'calories': calories,
+                                'proteins': proteins,
+                                'fats': fats,
+                                'carbs': carbs,
+                                'ingredients': ingredients,
+                                'price': unit_price
+                            }
+                        )
+                        product_result = result.fetchone()
+                        if product_result:
+                            product_id = product_result[0]
+                            products[product_name] = product_id
+                            inserted += 1
 
-                if product_name and unit_price is not None:
-                    result = connection.execute(
-                        text("""
-                            INSERT INTO product (name, description, grams, calories, proteins, 
-                                               fats, carbs, ingredients, unit_price)
-                            VALUES (:name, :desc, :grams, :calories, :proteins, 
-                                   :fats, :carbs, :ingredients, :price)
-                            ON CONFLICT (name) DO NOTHING
-                            RETURNING id
-                        """),
-                        {
-                            'name': product_name,
-                            'desc': description,
-                            'grams': grams,
-                            'calories': calories,
-                            'proteins': proteins,
-                            'fats': fats,
-                            'carbs': carbs,
-                            'ingredients': ingredients,
-                            'price': unit_price
-                        }
-                    )
-                    product_result = result.fetchone()
-                    if product_result:
-                        product_id = product_result[0]
-                        products[product_name] = product_id
-                        inserted += 1
+                # Обрабатываем категории для продукта (новые и существующие)
+                if product_id:
+                    category_str = row['categoryName'].strip() if pd.notna(row['categoryName']) else None
+                    if category_str:
+                        categories_multiple = category_str.split(";")
+                        for one_category in categories_multiple:
+                            one_category = one_category.strip()
+
+                            if one_category in categories:
+                                category_id = categories[one_category]
+                                # Вставляем связь product-category
+                                connection.execute(
+                                    text("""
+                                        INSERT INTO product_category (product_id, category_id)
+                                        VALUES (:product_id, :category_id)
+                                        ON CONFLICT (product_id, category_id) DO NOTHING
+                                    """),
+                                    {'product_id': product_id, 'category_id': category_id}
+                                )
+                                print(f" Inserted product_id - {product_id}, category_id - {category_id} ")
 
             # Получаем все продукты
             result = connection.execute(text("SELECT id, name FROM product"))
